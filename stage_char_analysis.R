@@ -3,7 +3,7 @@ library(ghql)
 library(rvest)
 library(dplyr)
 
-gg_key <- "959b07076cb22e08be35841d23ff7cc9"
+gg_key <- "YOUR_API_KEY"
 
 url <- "https://api.start.gg/gql/alpha"
 
