@@ -43,14 +43,71 @@ game_df_21_jan_h2_tbl %>%
   lapply(tidy_game_data) %>%
   bind_rows()
 
-test <- pull_ids_from_tourney_df(tournaments_21, "2021-02-01", "2021-02-15") %>%
-  .[1:3] %>%
-  lapply(pull_game_info_from_pages)
-
 test %>%
-  .[[1]] %>%
-  lapply(as.tibble, .name_repair= "unique") %>%
-  bind_rows()
+  lapply(as.tibble)
+
+test <- pull_ids_from_tourney_df(tournaments_21, "2021-02-01", "2021-02-15") %>%
+  lapply(pull_tournament_res_from_id)
+  
+t <- test %>%
+  lapply(combine_pages_from_object)
+  
+
+combine_pages_from_object <- function(tournament_object) {
+  
+  if (length(tournament_object) == 0) {
+    return(NULL)
+  }
+  
+  tournament_id <- tournament_object %>% .[[1]] %>% .[['id']]
+  
+  print(paste0("Current ID: ", tournament_id))
+  
+  unnested_df <- tournament_object %>%
+    lapply(as.tibble, .name_repair= "unique") %>%
+    bind_rows() %>%
+    unnest(everything(), names_repair = "unique") %>%
+    unnest(everything(), names_repair = "unique") %>%
+    unnest(everything(), names_repair = "unique") %>%
+    unnest(everything(), names_repair = "unique") %>%
+    unnest(everything(), names_repair = "unique") %>%
+    unnest(everything(), names_repair = "unique") %>%
+    bind_rows()
+  
+  if (ncol(unnested_df) == 23 && !"stage" %in% names(unnested_df)){
+    unnested_df %>%
+      rename(
+      tournament_id = id...1,
+      tournament_name = name...2,
+      attendee_count = numAttendees,
+      start_date = startAt,
+      end_date = endAt,
+      event_id = id...6,
+      event_state = state,
+      is_online = isOnline,
+      event_name = name...9,
+      competition_tier = competitionTier,
+      event_type = type,
+      set_id = id...12,
+      set_round = round,
+      set_name = fullRoundText,
+      match_id = id...15,
+      match_round = orderNum,
+      selection_id = id...17,
+      selection_type = selectionType,
+      selection_value = selectionValue,
+      player_id = id...20,
+      player_name = name...21,
+      winner_id = winnerId,
+      stage_name = name...23
+    ) %>%
+    return()
+  } else if ("stage" %in% names(unnested_df)) {
+    return(NULL)
+  } else {
+    return(NULL)
+  }
+}
 
 game_df_21_feb_h2 <- tournaments_21 %>% 
   dplyr::filter(!is.na(numAttendees)) %>%
@@ -172,7 +229,7 @@ remove_noncompliant_tournaments_from_list <- function(tourneys_list) {
     return()
 }
 
-pull_game_info_from_pages <- function(tournament_id) {
+pull_tournament_res_from_id <- function(tournament_id) {
   list_of_res_json <- list()
   
   i <- 1
@@ -272,19 +329,19 @@ tidy_game_data <- function(raw_tbl) {
       tournament_id = id...1,
       tournament_name = name...2,
       attendee_count = numAttendees,
-      tournament_state = state,
       start_date = startAt,
       end_date = endAt,
-      event_id = id...7,
+      event_id = id...6,
+      state= event_state,
       is_online = isOnline,
-      videogame = name...9,
+      event_name = name...9,
       competition_tier = competitionTier,
       event_type = type,
       set_id = id...12,
       set_round = round,
       set_name = fullRoundText,
-      game_id = id...15,
-      game_round = orderNum,
+      match_id = id...15,
+      match_round = orderNum,
       selection_id = id...17,
       selection_type = selectionType,
       selection_value = selectionValue,
