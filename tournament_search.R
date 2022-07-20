@@ -1,169 +1,101 @@
-tourney_query <- '
-query TournamentsByVideogame($tournamentId: ID!) {
-  tournament(id: $tournamentId) {
+# use to generate list of tournaments to pull game data from
+
+## to pull custom date range
+start_date <- as.numeric(as.POSIXct('2022-01-01', '%Y-%m-%d'))  
+end_date <- as.numeric(as.POSIXct('2022-02-01', '%Y-%m-%d'))  
+
+pull_tournaments_from_pages(start_date, end_date)
+
+## to pull 2021 yr
+tourneys_df <-
+  c(
+    pull_tournaments_from_pages('2021-01-01', '2021-02-01'),
+    pull_tournaments_from_pages('2021-02-02', '2021-03-01'),
+    pull_tournaments_from_pages('2021-03-02', '2021-04-01'),
+    pull_tournaments_from_pages('2021-04-02', '2021-05-01'),
+    pull_tournaments_from_pages('2021-05-02', '2021-06-01'),
+    pull_tournaments_from_pages('2021-06-02', '2021-07-01'),
+    pull_tournaments_from_pages('2021-07-02', '2021-08-01'),
+    pull_tournaments_from_pages('2021-08-02', '2021-09-01'),
+    pull_tournaments_from_pages('2021-09-02', '2021-10-01'),
+    pull_tournaments_from_pages('2021-10-02', '2021-11-01'),
+    pull_tournaments_from_pages('2021-11-02', '2021-12-01'),
+    pull_tournaments_from_pages('2021-12-02', '2022-01-01')
+  ) %>%
+  bind_rows() %>%
+  unnest()
+
+pull_tournaments_from_pages <-
+  function(start_date, stop_date, page_start) {
+    search_tourneys_query <- '
+query TournamentsByVideogame($beforeDate: Timestamp!, $afterDate: Timestamp!,
+  $page:Int!, $perPage: Int!, $videogameId: ID!) {
+  tournaments(query: {
+    perPage: $perPage
+    page: $page
+    filter: {
+      afterDate: $afterDate,
+      beforeDate: $beforeDate,
+      published: true,
+      videogameIds: [
+        $videogameId
+      ]
+    }
+  }) {
+    nodes {
       id
       name
       numAttendees
-      state
       startAt
       endAt
-      events (limit: 100, filter: {videogameId: 1386}){
-        id
-        isOnline
-        name
-      	competitionTier
-      	type
     }
   }
 }
+
 '
 
-tournament_21_df <- t %>% dplyr::select(id) %>% pull() %>% .[1:10] %>%
-  lapply(pull_tourney_data_from_id) %>%
-  lapply(tidy_tourney_data) %>%
-  bind_rows()
+start_date_formatted <-
+  as.numeric(as.POSIXct(start_date, '%Y-%m-%d'))
+end_date_formatted <-
+  as.numeric(as.POSIXct(stop_date, '%Y-%m-%d'))
 
-tournament_df %>%
-  view()
+if (missing(page_start)) {
+  i <- 1
+} else {
+  i <- page_start
+}
 
-relevant_ids <- tournament_df %>%
-  dplyr::select(event_id) %>%
-  pull()
+list_of_res_json <- list()
 
-pull_tourney_data_from_id <- function(tournament_id) {
-  
-  q_var <- list(tournamentId = tournament_id)
-  
-  q <- Query$new()$query('url', tourney_query)
+q <- Query$new()$query('url', search_tourneys_query)
+
+while (T) {
+  q_var <- list(
+    afterDate = start_date_formatted,
+    beforeDate = end_date_formatted,
+    page = i,
+    perPage = 500,
+    videogameId = 1386
+  )
   
   res_json <- con$exec(q$url, variables = q_var) %>%
-    fromJSON(flatten = F)
+    fromJSON(flatten = F) %>%
+    .[['data']]
   
-  res_json %>%
-    #tidy_tourney_data() %>%
-    return()
-}
-
-tidy_tourney_data <- function(res_json) {
-  res_json %>%
-    .[['data']] %>%
-    .[['tournament']] %>%
-    as_tibble() %>%
-    unnest() %>%
-    rename(
-      tournament_id = id,
-      tournament_name = name,
-      attendee_count = numAttendees,
-      date_start = startAt,
-      date_end = endAt,
-      event_id = id1,
-      is_online = isOnline,
-      event_name = name1,
-      competition_tier = competitionTier,
-      event_type = type
-    ) %>%
-    dplyr::filter(event_type == 1) %>%
-    return()
-}
-
-###############################################################################
-tourn_event_list <- pull_tournaments_from_pages(1641024000)
-
-tourn_event_df <- tourn_event_list %>%
-  lapply(tidy_tourney_data) %>%
-  bind_rows()
-
-tourn_event_df
-
-pull_tournaments_from_pages <- function(date_timestamp) {
-  
-  list_of_res_json <- list()
-  
-  i <- 1
-  
-  while (T) {
-    q_var <- list(afterDate= date_timestamp,
-                  page= i,
-                  perPage = 100,
-                  videogameId= 1386)
-    
-    res_json <- con$exec(q$url, variables = q_var) %>%
-      fromJSON(flatten = F) %>%
-      .[['data']] 
-    
-    if (is.null(res_json %>%
-        .[['tournaments']])) {
-      break
-    } else {
-      list_of_res_json[[length(list_of_res_json) + 1]] <- res_json
-      i <- i + 1
-      Sys.sleep(1)
-    }
+  if (res_json %>%
+      .[['tournaments']] %>%
+      .[['nodes']] %>%
+      length() == 0) {
+    print(paste0("Found end of query at page: ", i))
+    break
+  } else {
+    list_of_res_json[[length(list_of_res_json) + 1]] <- res_json
+    print(paste0("Successfully appended page: ", i))
+    i <- i + 1
+    Sys.sleep(0.5)
   }
-  
-  return(list_of_res_json)
-  
 }
 
+return(list_of_res_json)
 
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
+  }
