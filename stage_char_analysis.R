@@ -12,7 +12,7 @@ con <- GraphqlClient$new(url = url,
                                        'Content-Type'= 'application/json'))
 ###############################################################################
 
-game_df_21_jan_h1 <- t %>% 
+game_df_21_jan_h1 <- tournaments_21 %>% 
   dplyr::filter(!is.na(numAttendees)) %>%
   dplyr::filter(start_date <= "2021-01-15") %>%
   dplyr::select(id) %>% 
@@ -24,7 +24,7 @@ game_df_21_jan_h1 <- t %>%
 game_df_21_jan_h1 %>% write.csv("game_df_21_jan_h1.csv")
 t %>% write.csv("tournaments_21.csv")
 
-game_df_21_jan_h2 <- t %>% 
+game_df_21_jan_h2 <- tournaments_21 %>% 
   dplyr::filter(!is.na(numAttendees)) %>%
   dplyr::filter(start_date > "2021-01-15") %>%
   dplyr::filter(start_date <= "2021-01-31") %>%
@@ -43,16 +43,16 @@ game_df_21_jan_h2_tbl %>%
   lapply(tidy_game_data) %>%
   bind_rows()
 
-game_df_21_feb <- t %>% 
-  dplyr::filter(!is.na(numAttendees)) %>%
-  dplyr::filter(start_date > "2021-02-01") %>%
-  dplyr::filter(start_date <= "2021-02-15") %>%
-  dplyr::select(id) %>% 
-  pull() %>%
+test <- pull_ids_from_tourney_df(tournaments_21, "2021-02-01", "2021-02-15") %>%
   .[1:3] %>%
-  create_games_df_from_ids_list()
+  lapply(pull_game_info_from_pages)
 
-game_df_21_feb_h2 <- t %>% 
+test %>%
+  .[[1]] %>%
+  lapply(as.tibble, .name_repair= "unique") %>%
+  bind_rows()
+
+game_df_21_feb_h2 <- tournaments_21 %>% 
   dplyr::filter(!is.na(numAttendees)) %>%
   dplyr::filter(start_date > "2021-02-15") %>%
   dplyr::filter(start_date <= "2021-02-28") %>%
@@ -60,7 +60,7 @@ game_df_21_feb_h2 <- t %>%
   pull() %>%
   create_games_df_from_ids_list()
 
-game_df_21_q2 <- t %>%
+game_df_21_q2 <- tournaments_21 %>%
   dplyr::filter(!is.na(numAttendees)) %>%
   dplyr::filter(start_month %in% c(4:6)) %>%
   dplyr::select(id) %>%
@@ -162,22 +162,6 @@ create_games_df_from_ids_list <- function(ids_list) {
     lapply(pull_game_info_from_pages)
 
   return(raw_tbl)
-  
-  tryCatch(
-    tidy_tbl <- raw_tbl %>%
-      remove_noncompliant_tournaments_from_list %>%
-      lapply(parse_tournament_object),
-    error = function(e) {
-      message(print(e))
-      return(raw_tbl)
-    }
-  )
-    
-  tidy_tbl %>%
-    lapply(tidy_game_data) %>%
-    bind_rows() %>%
-    return()
-  
 }
 
 remove_noncompliant_tournaments_from_list <- function(tourneys_list) {
@@ -188,7 +172,7 @@ remove_noncompliant_tournaments_from_list <- function(tourneys_list) {
     return()
 }
 
-pull_game_info_from_pages <- function(tournament_id, trial= F) {
+pull_game_info_from_pages <- function(tournament_id) {
   list_of_res_json <- list()
   
   i <- 1
@@ -227,11 +211,11 @@ pull_game_info_from_pages <- function(tournament_id, trial= F) {
         .[['data']] %>%
         .[['tournament']]
       
-      list_of_res_json[[length(list_of_res_json) + 1]] <- unnested_json
+      #list_of_res_json[[length(list_of_res_json) + 1]] <- unnested_json
       
-      #if (length(unnested_json) != 0) {
-      #  list_of_res_json[[length(list_of_res_json) + 1]] <- unnested_json
-      #}
+      if (length(unnested_json) != 0) {
+        list_of_res_json[[length(list_of_res_json) + 1]] <- unnested_json
+      }
       
       print(paste0("Successfully appended page: ", i))
       Sys.sleep(1)

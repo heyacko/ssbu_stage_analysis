@@ -25,6 +25,20 @@ tourneys_df <-
   bind_rows() %>%
   unnest()
 
+## functions
+
+pull_ids_from_tourney_df <- function(tournaments_df, start_dt, end_dt) {
+  
+  tournaments_df %>%
+    dplyr::filter(!is.na(numAttendees)) %>%
+    dplyr::filter(start_date > start_dt) %>%
+    dplyr::filter(start_date <= end_dt) %>%
+    dplyr::select(id) %>% 
+    pull() %>%
+    return()
+  
+}
+
 pull_tournaments_from_pages <-
   function(start_date, stop_date, page_start) {
     search_tourneys_query <- '
