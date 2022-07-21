@@ -25,15 +25,23 @@ games_feb_h1 <-
   lapply(pull_tournament_res_from_id)
 
 games_feb_h2 <-
-  pull_ids_from_tourney_df(tournaments_21, "2021-02-16", "2021-02-28") %>%
+  pull_ids_from_tourney_df(tournaments_21, "2021-02-16", "2021-02-28") %>% 
   lapply(pull_tournament_res_from_id)
 
 games_mar_h1 <-
-  pull_ids_from_tourney_df(tournaments_21, "2021-03-01", "2021-03-15") %>%
+  pull_ids_from_tourney_df(tournaments_21, "2021-03-01", "2021-03-15") %>% 
   lapply(pull_tournament_res_from_id)
 
 games_mar_h2 <-
-  pull_ids_from_tourney_df(tournaments_21, "2021-03-16", "2021-03-31") %>%
+  pull_ids_from_tourney_df(tournaments_21, "2021-03-16", "2021-03-25") %>%
+  lapply(pull_tournament_res_from_id)
+
+games_mar_h3 <-
+  pull_ids_from_tourney_df(tournaments_21, "2021-03-26", "2021-03-29") %>%
+  lapply(pull_tournament_res_from_id)
+
+games_mar_h4 <-
+  pull_ids_from_tourney_df(tournaments_21, "2021-03-30", "2021-03-31") %>%
   lapply(pull_tournament_res_from_id)
 
 games_apr_h1 <-
@@ -69,6 +77,17 @@ games_jan_h1 <- games_jan_h1 %>%
 
 games_jan_h1 %>% write.csv("data/games_jan_h1_21.csv")
 
+games_jan_h2_t <- games_jan_h2 %>%
+  lapply(combine_pages_from_object) %>%
+  lapply(discard_noncompliant_dataframes)
+
+games_jan_h2 <- games_jan_h2_t %>%
+  discard(is.null) %>%
+  lapply(mutate, set_id= as.character(set_id)) %>%
+  bind_rows()
+
+games_jan_h2 %>% write.csv("data/games_1_h2_21.csv")
+
 games_feb_h1 <- games_feb_h1 %>%
   lapply(combine_pages_from_object) %>%
   lapply(discard_noncompliant_dataframes) %>%
@@ -85,7 +104,7 @@ games_feb_h2 <- games_feb_h2 %>%
 games_feb_h2 %>%
   write.csv("data/games_feb_h2_21.csv")
 
-games_mar_h1 <- games_mar_h1 %>%
+games_mar_h2 <- c(games_mar_h2,games_mar_h3) %>%
   lapply(combine_pages_from_object) %>%
   lapply(discard_noncompliant_dataframes) %>%
   bind_rows()
@@ -109,13 +128,15 @@ games_apr_h2 <- games_apr_h2 %>%
 games_apr_h2 %>%
   write.csv("data/games_apr_h2_21.csv")
 
-games_may_h2 <- games_may_h2 %>%
+games_may_h1 <- games_may_h1 %>%
   lapply(combine_pages_from_object) %>%
   lapply(discard_noncompliant_dataframes) %>%
   bind_rows()
 
-games_may_h2 %>%
-  write.csv("data/games_may_h2_21.csv")
+games_may_h1 %>%
+  write.csv("data/games_5_h1_21.csv")
+
+games_5_21 <- games_may_h1
 
 games_jun_h1 <- games_jun_h1 %>%
   lapply(combine_pages_from_object) %>%
@@ -202,61 +223,6 @@ discard_noncompliant_dataframes <- function(tournament_df) {
     return(NULL)
   }
 }
-
-game_df_21_feb_h2 <- tournaments_21 %>% 
-  dplyr::filter(!is.na(numAttendees)) %>%
-  dplyr::filter(start_date > "2021-02-15") %>%
-  dplyr::filter(start_date <= "2021-02-28") %>%
-  dplyr::select(id) %>% 
-  pull() %>%
-  create_games_df_from_ids_list()
-
-game_df_21_q2 <- tournaments_21 %>%
-  dplyr::filter(!is.na(numAttendees)) %>%
-  dplyr::filter(start_month %in% c(4:6)) %>%
-  dplyr::select(id) %>%
-  pull() %>%
-  lapply(pull_game_info_from_pages) %>%
-  lapply(tidy_game_data) %>%
-  bind_rows()
-  
-game_df_21_q3 <- t %>% 
-  dplyr::filter(!is.na(numAttendees)) %>%
-  dplyr::filter(start_month %in% c(7:9)) %>%
-  dplyr::select(id) %>% 
-  pull() %>%
-  lapply(pull_game_info_from_pages) %>%
-  lapply(tidy_game_data) %>%
-  bind_rows()
-
-game_df_21_q4 <- t %>%
-  dplyr::filter(!is.na(numAttendees)) %>%
-  dplyr::filter(start_month %in% c(10:12)) %>%
-  dplyr::select(id) %>%
-  pull() %>%
-  lapply(pull_game_info_from_pages) %>%
-  lapply(tidy_game_data) %>%
-  bind_rows()
-
-###############################################################################
-
-q_var <- list(afterDate= start_date,
-              beforeDate= end_date,
-              page= 6,
-              perPage = 500,
-              videogameId= 1386)
-
-q <- Query$new()$query('url', search_tourneys_query)
-
-res_json <- con$exec(q$url, variables = q_var) %>%
-  fromJSON(flatten = F)
-
-res_json %>%
-  .[['data']] %>%
-  .[['tournaments']] %>%
-  .[['nodes']] %>% length()
-  as_tibble() %>%
-  unnest()
 
 ###############################################################################
 # input tournament id, return every game within every event in tournament
@@ -369,7 +335,7 @@ pull_tournament_res_from_id <- function(tournament_id) {
       }
       
       print(paste0("Successfully appended page: ", i))
-      Sys.sleep(1)
+      Sys.sleep(1.25)
       i <- i + 1
     }
   }
@@ -448,16 +414,37 @@ tidy_game_data <- function(raw_tbl) {
     return()
 }
 
+###############################################################################
 
+games_6_21 <- games_6_h1_21 %>%
+  rbind(games_6_h2_21) %>%
+  select(-...1)
 
+games_6_21 %>% write.csv("data/games_6_21.csv", row.names = F)
 
+games_4_21 <- games_4_h1_21 %>%
+  rbind(games_4_h2_21) %>%
+  select(-...1)
 
+games_4_21 %>% write.csv("data/games_4_21.csv", row.names = F)
 
+games_2_21 <- games_2_h1_21 %>%
+  rbind(games_2_h2_21) %>%
+  select(-...1)
 
+games_2_21 %>% write.csv("data/games_2_21.csv", row.names = F)
 
+games_1_21 <- games_1_h1_21 %>%
+  rbind(games_1_h2_21) %>%
+  select(-...1)
 
+games_1_21 %>% write.csv("data/games_1_21.csv", row.names = F)
 
+games_5_21 <- games_5_h1_21 %>%
+  rbind(games_5_h2_21) %>%
+  select(-...1)
 
+games_5_21 %>% write.csv("data/games_5_21.csv", row.names = F)
 
 
 
