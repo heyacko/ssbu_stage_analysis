@@ -3,13 +3,14 @@ library(ghql)
 library(rvest)
 library(dplyr)
 
-gg_key <- "YOUR_API_KEY"
+gg_key <- "0d03706f73315ee880e81b761032ad1c"
 
 url <- "https://api.start.gg/gql/alpha"
 
 con <- GraphqlClient$new(url = url,
                          headers= list('Authorization'= paste0("Bearer ", gg_key),
                                        'Content-Type'= 'application/json'))
+
 ###############################################################################
 # initial pull of tournament objects
 games_jan_h1 <-
@@ -32,16 +33,20 @@ games_mar_h1 <-
   pull_ids_from_tourney_df(tournaments_21, "2021-03-01", "2021-03-15") %>% 
   lapply(pull_tournament_res_from_id)
 
-games_mar_h2 <-
-  pull_ids_from_tourney_df(tournaments_21, "2021-03-16", "2021-03-25") %>%
+games_mar_h2_1 <-
+  pull_ids_from_tourney_df(tournaments_21, "2021-03-16", "2021-03-22") %>%
   lapply(pull_tournament_res_from_id)
 
-games_mar_h3 <-
-  pull_ids_from_tourney_df(tournaments_21, "2021-03-26", "2021-03-29") %>%
+games_mar_h2_2_1 <-
+  pull_ids_from_tourney_df(tournaments_21, "2021-03-23", "2021-03-26") %>%
   lapply(pull_tournament_res_from_id)
 
-games_mar_h4 <-
-  pull_ids_from_tourney_df(tournaments_21, "2021-03-30", "2021-03-31") %>%
+games_mar_h2_2_2 <-
+  pull_ids_from_tourney_df(tournaments_21, "2021-03-27", "2021-03-28") %>%
+  lapply(pull_tournament_res_from_id)
+
+games_mar_h2_3 <-
+  pull_ids_from_tourney_df(tournaments_21, "2021-03-29", "2021-03-31") %>%
   lapply(pull_tournament_res_from_id)
 
 games_apr_h1 <-
@@ -104,13 +109,14 @@ games_feb_h2 <- games_feb_h2 %>%
 games_feb_h2 %>%
   write.csv("data/games_feb_h2_21.csv")
 
-games_mar_h2 <- c(games_mar_h2,games_mar_h3) %>%
+games_mar_h2 <- c(games_mar_h2_1,games_mar_h2_2_1,games_mar_h2_2_2,
+                  games_mar_h2_3) %>%
   lapply(combine_pages_from_object) %>%
   lapply(discard_noncompliant_dataframes) %>%
   bind_rows()
 
-games_mar_h1 %>%
-  write.csv("data/games_mar_h1_21.csv")
+games_mar_h2 %>%
+  write.csv("data/games_mar_h2_21.csv")
 
 games_apr_h1 <- games_apr_h1 %>%
   lapply(combine_pages_from_object) %>%
@@ -154,268 +160,6 @@ games_jun_h2 <- games_jun_h2 %>%
 games_jun_h2 %>%
   write.csv("data/games_jun_h2_21.csv")
 
-combine_pages_from_object <- function(tournament_object) {
-  
-  if (length(tournament_object) == 0) {
-    return(NULL)
-  }
-  
-  tournament_id <- tournament_object %>% .[[1]] %>% .[['id']]
-  
-  print(paste0("Current ID: ", tournament_id))
-  
-  unnested_df <- tryCatch(
-    tournament_object %>%
-      lapply(as.tibble, .name_repair = "unique") %>%
-      bind_rows() %>%
-      unnest(everything(), names_repair = "unique") %>%
-      unnest(everything(), names_repair = "unique") %>%
-      unnest(everything(), names_repair = "unique") %>%
-      unnest(everything(), names_repair = "unique") %>%
-      unnest(everything(), names_repair = "unique") %>%
-      unnest(everything(), names_repair = "unique") %>%
-      bind_rows(),
-    error = function(e) {
-      message(paste0("Error at ", tournament_id))
-    }
-  )
-  
-  return(unnested_df)
-}
-
-discard_noncompliant_dataframes <- function(tournament_df) {
-  
-  if (is.null(tournament_df)) {
-    return(NULL)
-  }
-  
-  print(distinct(tournament_df %>% dplyr::select(id...1)) %>% pull())
-  
-  if (ncol(tournament_df) == 23 && !"stage" %in% names(tournament_df)){
-    tournament_df %>%
-      rename(
-        tournament_id = id...1,
-        tournament_name = name...2,
-        attendee_count = numAttendees,
-        start_date = startAt,
-        end_date = endAt,
-        event_id = id...6,
-        event_state = state,
-        is_online = isOnline,
-        event_name = name...9,
-        competition_tier = competitionTier,
-        event_type = type,
-        set_id = id...12,
-        set_round = round,
-        set_name = fullRoundText,
-        match_id = id...15,
-        match_round = orderNum,
-        selection_id = id...17,
-        selection_type = selectionType,
-        selection_value = selectionValue,
-        player_id = id...20,
-        player_name = name...21,
-        winner_id = winnerId,
-        stage_name = name...23
-      ) %>%
-      return()
-  } else {
-    return(NULL)
-  }
-}
-
-###############################################################################
-# input tournament id, return every game within every event in tournament
-
-games_in_tourney_query <- '
-query gamesInTournament($tournamentId: ID!, $page: Int!, $perPage: Int!) {
-  tournament(id: $tournamentId) {
-      id
-      name
-      numAttendees
-      startAt
-      endAt
-      events (limit: 1000, filter: {videogameId: 1386}){
-        id
-        state
-        isOnline
-        name
-      	competitionTier
-      	type
-        sets(page: $page,
-        perPage: $perPage
-      ){
-        nodes {
-          id
-          round
-          fullRoundText
-          games {
-            id
-            orderNum
-            selections {
-              id
-              selectionType
-              selectionValue
-              entrant {
-                id
-                name
-              }
-            }
-            winnerId
-            stage {
-              name
-            }
-          }
-        }
-      }
-    }
-  }
-}
-'
-
-create_games_df_from_ids_list <- function(ids_list) {
-  
-  raw_tbl <- ids_list %>%
-    lapply(pull_game_info_from_pages)
-
-  return(raw_tbl)
-}
-
-remove_noncompliant_tournaments_from_list <- function(tourneys_list) {
-  tourneys_list %>%
-    purrr::keep(is_tibble) %>%
-    purrr::keep(function(x) ncol(x) == 23) %>%
-    purrr::keep(function(x) !"stage" %in% names(x)) %>%
-    return()
-}
-
-pull_tournament_res_from_id <- function(tournament_id) {
-  list_of_res_json <- list()
-  
-  i <- 1
-  
-  q <- Query$new()$query('url', games_in_tourney_query)
-  
-  print(paste0("Currently querying tournament: ", tournament_id))
-  
-  while (T) {
-    q_var <- list(tournamentId = tournament_id,
-                  page = i,
-                  perPage = 50)
-    
-    res_json <- con$exec(q$url, variables = q_var) %>%
-      fromJSON(flatten = F)
-    
-    if (res_json %>%
-        .[['data']] %>%
-        .[['tournament']] %>%
-        .[['events']] %>%
-        .[['sets']] %>%
-        .[['nodes']] %>%
-        .[[1]] %>%
-        length() == 0) {
-      print(paste0("Finished at page: ", i))
-      break
-    } else {
-      #unnested_json <- tryCatch(
-      #  parse_res_json(res_json),
-      #  error= function(e) {
-      #    message(paste0("Error occurred at: ", tournament_id, ", page: ", i))
-      #  }
-      #)
-      
-      unnested_json <- res_json %>%
-        .[['data']] %>%
-        .[['tournament']]
-      
-      #list_of_res_json[[length(list_of_res_json) + 1]] <- unnested_json
-      
-      if (length(unnested_json) != 0) {
-        list_of_res_json[[length(list_of_res_json) + 1]] <- unnested_json
-      }
-      
-      print(paste0("Successfully appended page: ", i))
-      Sys.sleep(1.25)
-      i <- i + 1
-    }
-  }
-  
-  return(
-    list_of_res_json
-  )
-  
-}
-
-parse_tournament_object <- function(tournament_object) {
-  
-  if (length(tournament_object) == 0) {
-    print("Empty")
-    return(NULL)
-  }
-  
-  tournament_id <-
-    tournament_object %>%
-    .[[1]] %>%
-    .[['id']]
-  
-  print(paste0("Current ID: ", tournament_id))
-  
-  unnested_df <- NULL
-  
-  tryCatch(
-    unnested_df <- tournament_object %>%
-      .[[1]] %>%
-      as.tibble() %>%
-      unnest(everything(), names_repair = "unique") %>%
-      unnest(everything(), names_repair = "unique") %>%
-      unnest(everything(), names_repair = "unique") %>%
-      dplyr::filter(games != "NULL") %>%
-      unnest(col = games, names_repair = "unique") %>%
-      unnest(everything(), names_repair = "unique") %>%
-      unnest(everything(), names_repair = "unique"),
-    error = function(e) {
-      message(print("Failure"))
-    }
-  )
-  
-  return(unnested_df)
-  
-}
-
-tidy_game_data <- function(raw_tbl) {
-  
-  raw_tbl %>%
-    rename(
-      tournament_id = id...1,
-      tournament_name = name...2,
-      attendee_count = numAttendees,
-      start_date = startAt,
-      end_date = endAt,
-      event_id = id...6,
-      state= event_state,
-      is_online = isOnline,
-      event_name = name...9,
-      competition_tier = competitionTier,
-      event_type = type,
-      set_id = id...12,
-      set_round = round,
-      set_name = fullRoundText,
-      match_id = id...15,
-      match_round = orderNum,
-      selection_id = id...17,
-      selection_type = selectionType,
-      selection_value = selectionValue,
-      player_id = id...20,
-      player_name = name...21,
-      winner_id = winnerId,
-      stage_name = name...23
-    ) %>%
-    mutate_all(as.character) %>%
-    return()
-}
-
-###############################################################################
-
 games_6_21 <- games_6_h1_21 %>%
   rbind(games_6_h2_21) %>%
   select(-...1)
@@ -430,6 +174,12 @@ games_4_21 %>% write.csv("data/games_4_21.csv", row.names = F)
 
 games_2_21 <- games_2_h1_21 %>%
   rbind(games_2_h2_21) %>%
+  select(-...1)
+
+games_2_21 %>% write.csv("data/games_2_21.csv", row.names = F)
+
+games_3_21 <- games_3_h1_21 %>%
+  rbind(games_3_h2_21) %>%
   select(-...1)
 
 games_2_21 %>% write.csv("data/games_2_21.csv", row.names = F)
