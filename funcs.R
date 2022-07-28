@@ -187,7 +187,7 @@ query gamesInTournament($tournamentId: ID!, $page: Int!, $perPage: Int!) {
       }
       
       print(paste0("Successfully appended page: ", i))
-      Sys.sleep(0.8)
+      Sys.sleep(1.25)
       i <- i + 1
     }
   }
